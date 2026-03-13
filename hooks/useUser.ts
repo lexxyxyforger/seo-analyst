@@ -42,51 +42,57 @@ function readUserFromStorage(): UserProfile {
   }
 }
 
+function writeUserToStorage(user: UserProfile): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+  } catch {}
+}
+
 export function useUser() {
-  // Lazy initializer runs once on mount — no setState inside effect needed
   const [user, setUser] = useState<UserProfile>(readUserFromStorage);
-  const mounted = typeof window !== "undefined";
 
-  const syncUser = useCallback(() => {
-    setUser(readUserFromStorage());
-  }, []);
-
+  // ✅ Only sync from OTHER tabs via storage event — same-tab is handled
+  // directly by setUser, so no custom event needed (avoids cross-component
+  // setState-during-render).
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) syncUser();
+      if (e.key === STORAGE_KEY) {
+        setUser(readUserFromStorage());
+      }
     };
     window.addEventListener("storage", onStorage);
-    window.addEventListener("seopro:user-updated", syncUser);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("seopro:user-updated", syncUser);
-    };
-  }, [syncUser]);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const updateUser = useCallback((updates: Partial<UserProfile>) => {
+    // ✅ Pure state update first — NO side effects inside the updater
     setUser((prev) => {
       const next = { ...prev, ...updates };
-      // Auto-update avatar if seed changed
       if (updates.avatarSeed && !updates.avatar) {
         next.avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${updates.avatarSeed}`;
       }
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        window.dispatchEvent(new Event("seopro:user-updated"));
-      } catch {}
       return next;
+    });
+    // ✅ Persist to localStorage AFTER the state update, outside the updater
+    // Use queueMicrotask so it runs after React has committed the state
+    queueMicrotask(() => {
+      const current = readUserFromStorage();
+      const next = { ...current, ...updates };
+      if (updates.avatarSeed && !updates.avatar) {
+        next.avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${updates.avatarSeed}`;
+      }
+      writeUserToStorage(next);
     });
   }, []);
 
   const incrementAnalyses = useCallback(() => {
     setUser((prev) => {
       const next = { ...prev, analyses: (prev.analyses || 0) + 1 };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {}
+      // ✅ Same pattern: persist outside updater
+      queueMicrotask(() => writeUserToStorage(next));
       return next;
     });
   }, []);
 
-  return { user, updateUser, incrementAnalyses, mounted };
+  return { user, updateUser, incrementAnalyses };
 }
