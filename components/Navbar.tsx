@@ -1,12 +1,21 @@
 "use client";
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
 import ProfileModal from "./ProfileModal";
 
+const NAV_LINKS = [
+  { href: "/analyzer", label: "Analyzer" },
+  { href: "/docs",     label: "Docs"     },
+  { href: "/pricing",  label: "Pricing"  },
+];
+
 export default function Navbar() {
   const { user, mounted } = useUser();
-  const [scrolled, setScrolled] = useState(false);
+  const [scrolled, setScrolled]       = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -19,23 +28,21 @@ export default function Navbar() {
       <nav
         className="sticky top-0 z-50 transition-all duration-300"
         style={{
-          background: scrolled ? "rgba(255,255,255,0.92)" : "rgba(255,255,255,0.7)",
-          backdropFilter: "blur(16px)",
+          background: scrolled ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.75)",
+          backdropFilter: "blur(20px)",
           borderBottom: scrolled ? "1px solid var(--color-border)" : "1px solid transparent",
-          boxShadow: scrolled ? "0 1px 16px -4px rgb(0 0 0 / 0.08)" : "none",
+          boxShadow: scrolled ? "0 1px 20px -4px rgb(0 0 0 / 0.08)" : "none",
         }}
       >
         <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
 
           {/* Logo */}
-          <div className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2.5 select-none">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: "var(--color-brand-600)", boxShadow: "var(--shadow-brand)" }}
             >
-              <span className="text-white text-lg font-bold select-none" style={{ fontFamily: "var(--font-display)", fontStyle: "italic" }}>
-                S
-              </span>
+              <span className="text-white text-lg font-bold" style={{ fontFamily: "var(--font-display)", fontStyle: "italic" }}>S</span>
             </div>
             <div className="flex flex-col leading-none">
               <span className="font-bold text-lg tracking-tight" style={{ color: "var(--color-text)" }}>
@@ -45,24 +52,47 @@ export default function Navbar() {
                 Audit Platform
               </span>
             </div>
-          </div>
+          </Link>
 
           {/* Nav links */}
           <div className="hidden sm:flex items-center gap-1">
-            {["Analyzer", "Docs", "Pricing"].map((item) => (
-              <button
-                key={item}
-                className="px-4 py-2 rounded-xl text-sm font-medium transition-colors"
-                style={{ color: "var(--color-text-muted)" }}
-                onMouseEnter={e => { const el = e.target as HTMLElement; el.style.color = "var(--color-text)"; el.style.background = "var(--color-surface-3)"; }}
-                onMouseLeave={e => { const el = e.target as HTMLElement; el.style.color = "var(--color-text-muted)"; el.style.background = "transparent"; }}
-              >
-                {item}
-              </button>
-            ))}
+            {NAV_LINKS.map(({ href, label }) => {
+              const active = pathname === href;
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+                  style={{
+                    color:      active ? "var(--color-brand-600)" : "var(--color-text-muted)",
+                    background: active ? "var(--color-brand-50)"  : "transparent",
+                  }}
+                  onMouseEnter={e => {
+                    if (!active) {
+                      (e.currentTarget as HTMLElement).style.color      = "var(--color-text)";
+                      (e.currentTarget as HTMLElement).style.background = "var(--color-surface-3)";
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (!active) {
+                      (e.currentTarget as HTMLElement).style.color      = "var(--color-text-muted)";
+                      (e.currentTarget as HTMLElement).style.background = "transparent";
+                    }
+                  }}
+                >
+                  {label}
+                  {active && (
+                    <span
+                      className="ml-1.5 w-1 h-1 rounded-full inline-block align-middle"
+                      style={{ background: "var(--color-brand-500)" }}
+                    />
+                  )}
+                </Link>
+              );
+            })}
           </div>
 
-          {/* User avatar button */}
+          {/* User avatar */}
           <button
             onClick={() => setShowProfile(true)}
             className="flex items-center gap-3 px-2 py-1.5 rounded-2xl transition-all"
@@ -71,8 +101,6 @@ export default function Navbar() {
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "var(--color-surface-3)"; }}
           >
             <div className="relative">
-              {/* ✅ Render identical placeholder on server + first client paint.
-                  Swap to real avatar only after mount (localStorage read). */}
               {mounted && user.avatar ? (
                 <img
                   src={user.avatar}
@@ -85,7 +113,6 @@ export default function Navbar() {
                   className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold"
                   style={{ background: "var(--color-brand-500)" }}
                 >
-                  {/* Empty on server, initial letter after mount */}
                   {mounted ? (user.name?.[0]?.toUpperCase() || "U") : ""}
                 </div>
               )}
