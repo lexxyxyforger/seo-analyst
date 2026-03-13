@@ -4,12 +4,10 @@ import { useUser } from "@/hooks/useUser";
 import ProfileModal from "./ProfileModal";
 
 export default function Navbar() {
-  const { user } = useUser();
+  const { user, mounted } = useUser();
   const [scrolled, setScrolled] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  // ✅ Only scroll listener in effect — no mounted setState needed
-  // user data comes from useUser lazy initializer (already runs on client)
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -73,8 +71,9 @@ export default function Navbar() {
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "var(--color-surface-3)"; }}
           >
             <div className="relative">
-              {/* ✅ user.avatar comes from lazy init — no mounted guard needed */}
-              {user.avatar ? (
+              {/* ✅ Render identical placeholder on server + first client paint.
+                  Swap to real avatar only after mount (localStorage read). */}
+              {mounted && user.avatar ? (
                 <img
                   src={user.avatar}
                   alt={user.name}
@@ -86,7 +85,8 @@ export default function Navbar() {
                   className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold"
                   style={{ background: "var(--color-brand-500)" }}
                 >
-                  {user.name?.[0]?.toUpperCase() || "U"}
+                  {/* Empty on server, initial letter after mount */}
+                  {mounted ? (user.name?.[0]?.toUpperCase() || "U") : ""}
                 </div>
               )}
               <span
@@ -95,7 +95,7 @@ export default function Navbar() {
               />
             </div>
             <span className="text-sm font-semibold pr-1 hidden sm:block" style={{ color: "var(--color-text)" }}>
-              {user.name}
+              {mounted ? user.name : ""}
             </span>
             <svg className="w-3.5 h-3.5 hidden sm:block" style={{ color: "var(--color-text-subtle)" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

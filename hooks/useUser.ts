@@ -26,7 +26,6 @@ const DEFAULT_USER: UserProfile = {
 const STORAGE_KEY = "seopro_v2_user";
 
 function readUserFromStorage(): UserProfile {
-  if (typeof window === "undefined") return DEFAULT_USER;
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) return { ...DEFAULT_USER, ...JSON.parse(saved) };
@@ -49,50 +48,44 @@ function writeUserToStorage(user: UserProfile): void {
 }
 
 export function useUser() {
-  const [user, setUser] = useState<UserProfile>(readUserFromStorage);
+  // ✅ Always start with DEFAULT_USER so server & first client render match.
+  // localStorage is read only after mount (useEffect) to avoid hydration mismatch.
+  const [user, setUser] = useState<UserProfile>(DEFAULT_USER);
+  const [mounted, setMounted] = useState(false);
 
-  // ✅ Only sync from OTHER tabs via storage event — same-tab is handled
-  // directly by setUser, so no custom event needed (avoids cross-component
-  // setState-during-render).
   useEffect(() => {
+    // Runs only on client after hydration — safe to read localStorage here
+    queueMicrotask(() => {
+      setUser(readUserFromStorage());
+      setMounted(true);
+    });
+
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) {
-        setUser(readUserFromStorage());
-      }
+      if (e.key === STORAGE_KEY) setUser(readUserFromStorage());
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const updateUser = useCallback((updates: Partial<UserProfile>) => {
-    // ✅ Pure state update first — NO side effects inside the updater
     setUser((prev) => {
       const next = { ...prev, ...updates };
       if (updates.avatarSeed && !updates.avatar) {
         next.avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${updates.avatarSeed}`;
       }
+      // ✅ Persist outside the updater via queueMicrotask — keeps updater pure
+      queueMicrotask(() => writeUserToStorage(next));
       return next;
-    });
-    // ✅ Persist to localStorage AFTER the state update, outside the updater
-    // Use queueMicrotask so it runs after React has committed the state
-    queueMicrotask(() => {
-      const current = readUserFromStorage();
-      const next = { ...current, ...updates };
-      if (updates.avatarSeed && !updates.avatar) {
-        next.avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${updates.avatarSeed}`;
-      }
-      writeUserToStorage(next);
     });
   }, []);
 
   const incrementAnalyses = useCallback(() => {
     setUser((prev) => {
       const next = { ...prev, analyses: (prev.analyses || 0) + 1 };
-      // ✅ Same pattern: persist outside updater
       queueMicrotask(() => writeUserToStorage(next));
       return next;
     });
   }, []);
 
-  return { user, updateUser, incrementAnalyses };
+  return { user, updateUser, incrementAnalyses, mounted };
 }
